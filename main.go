@@ -3,15 +3,31 @@ package main
 import(
 	"fmt"
 	"net/http"
+	"log"
 )
 
-func main(){
-	mux := http.NewServeMux()
-	mux.Handle("/", http.FileServer(http.Dir(".")))
+func healthzHandler(w http.ResponseWriter, r *http.Request){
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(http.StatusText(http.StatusOK)))
+}
 
-	srv := http.Server{Handler: mux, Addr: ":8080"}
+func main(){
+	const root = "."
+	const port = "8080"
+
+	mux := http.NewServeMux()
+	mux.Handle("/app/", http.StripPrefix("/app", http.FileServer(http.Dir(root))))
+	mux.HandleFunc("/healthz", healthzHandler)
+
+	srv := &http.Server{
+		Handler: mux, 
+		Addr: ":" + port,
+	}
 	
 	fmt.Println("Starting server at 8080...")
-	srv.ListenAndServe()
+	if err := srv.ListenAndServe(); err != nil{
+		log.Fatalf("server stopped: %s\n", err)
+	}
 }
 
