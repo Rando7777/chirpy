@@ -6,6 +6,8 @@ import(
 	"net/http"
 	"strings"
 	"slices"
+	"github.com/google/uuid"
+	"github.com/Rando7777/chirpy/internal/database"
 )
 
 
@@ -21,9 +23,10 @@ func profanityFilter(msg string) string{
 	return strings.Join(words, " ")
 }
 
-func validateChirpHandler(w http.ResponseWriter, r *http.Request){
+func (a *apiConfig) createChirpHandler(w http.ResponseWriter, r *http.Request){
 	type parameters struct{
-		Chirp string `json:"body"`
+		Body string `json:"body"`
+		UserID uuid.UUID `json:"user_id"`
 	}
 	defer r.Body.Close()
 	
@@ -35,14 +38,27 @@ func validateChirpHandler(w http.ResponseWriter, r *http.Request){
 		return
 	}
 
-	if len(params.Chirp) > 140{
+	if len(params.Body) > 140{
 		respondWithError(w, 400, "Chirp is too long")
 		return
 	}
-
-	params.Chirp = profanityFilter(params.Chirp)
-	type successResponse struct{
-		Cleaned string `json:"cleaned_body"`
+	params.Body = profanityFilter(params.Body)
+	
+	c, err := a.Db.CreateChirp(r.Context(), database.CreateChirpParams{
+		Body: params.Body,
+		UserID: params.UserID,
+	})
+	if err != nil {
+		log.Printf("Error creating db entry: %s", err)
+		w.WriteHeader(500)
+		return
 	}
-	respondWithJSON(w, 200, successResponse{Cleaned: params.Chirp})
+	chirp := Chirp{
+		ID: c.ID,
+		CreatedAt: c.CreatedAt,
+		UpdatedAt: c.UpdatedAt,
+		Body: c.Body,
+		UserID: c.UserID,
+	}
+	respondWithJSON(w, 201, chirp)
 }
