@@ -5,7 +5,6 @@ import(
 	"fmt"
 )
 
-
 func (a *apiConfig) metricsHandler(w http.ResponseWriter, r *http.Request){
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
@@ -27,3 +26,4 @@ func (a *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler{
 		next.ServeHTTP(w, r)
 	})
 }
+
