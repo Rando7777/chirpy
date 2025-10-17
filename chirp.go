@@ -2,7 +2,7 @@ package main
 
 import(
 	"encoding/json"
-	"log"
+	"fmt"
 	"net/http"
 	"strings"
 	"slices"
@@ -33,13 +33,12 @@ func (a *apiConfig) createChirpHandler(w http.ResponseWriter, r *http.Request){
 	decoder := json.NewDecoder(r.Body)
 	params := parameters{}
 	if err := decoder.Decode(&params); err != nil {
-		log.Printf("Error decoding parameters: %s", err)
-		w.WriteHeader(500)
+		respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Error decoding parameters: %s", err))
 		return
 	}
 
 	if len(params.Body) > 140{
-		respondWithError(w, 400, "Chirp is too long")
+		respondWithError(w, http.StatusBadRequest, "Chirp is too long")
 		return
 	}
 	params.Body = profanityFilter(params.Body)
@@ -49,8 +48,7 @@ func (a *apiConfig) createChirpHandler(w http.ResponseWriter, r *http.Request){
 		UserID: params.UserID,
 	})
 	if err != nil {
-		log.Printf("Error creating db entry: %s", err)
-		w.WriteHeader(500)
+		respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Error creating db entry: %s", err))
 		return
 	}
 	chirp := Chirp{
@@ -60,5 +58,45 @@ func (a *apiConfig) createChirpHandler(w http.ResponseWriter, r *http.Request){
 		Body: c.Body,
 		UserID: c.UserID,
 	}
-	respondWithJSON(w, 201, chirp)
+	respondWithJSON(w, http.StatusCreated, chirp)
+}
+
+func (a *apiConfig) getChirpsHandler(w http.ResponseWriter, r *http.Request){
+	chirps, err := a.Db.GetChirps(r.Context())
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Error getting chirps: %s", err))
+		return
+	}
+	var res []Chirp
+	for _, c := range chirps {
+		res = append(res, Chirp{
+			ID: c.ID,
+			CreatedAt: c.CreatedAt,
+			UpdatedAt: c.UpdatedAt,
+			Body: c.Body,
+			UserID: c.UserID,
+		})
+	}
+	respondWithJSON(w, http.StatusOK, res)
+}
+	
+func (a *apiConfig) getChirpByIdHandler(w http.ResponseWriter, r *http.Request){
+	id, err := uuid.Parse(r.PathValue("chirp_id"))
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, fmt.Sprintf("Error parsing uuid: %s", err))
+		return
+	}
+	c, err := a.Db.GetChirp(r.Context(), id)
+	if err != nil {
+		respondWithError(w, http.StatusNotFound, fmt.Sprintf("Error getting chirp: %s", err))
+		return
+	}
+	chirp := Chirp{
+		ID: c.ID,
+		CreatedAt: c.CreatedAt,
+		UpdatedAt: c.UpdatedAt,
+		Body: c.Body,
+		UserID: c.UserID,
+	}
+	respondWithJSON(w, http.StatusOK, chirp)
 }
